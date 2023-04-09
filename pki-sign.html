@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<!-- saved from url=(0014)about:internet -->
+<html>
+    <head>
+        <title>WebCrypto GOST: CMS Signed data</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.00, maximum-scale=1.00, user-scalable=0" />
+        <script src="scripts/prettify/prettify.js"></script>
+        <script src="scripts/prettify/lang-css.js"></script>
+        <script src="scripts/polyfill/typedarray.js"></script>
+        <script src="scripts/gost/gostCrypto.js"></script>
+        <script src="scripts/gost/gostCoding.js"></script>
+        <script src="scripts/gost/gostSecurity.js"></script>
+        <script src="scripts/gost/gostASN1.js"></script>
+        <script src="scripts/gost/gostCert.js"></script>
+        <script src="scripts/gost/gostCMS.js"></script>
+        <script src="scripts/filesaver/FileSaver.js"></script>
+        <script src="scripts/gost/gostViewer.js"></script>
+        <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+        <link type="text/css" rel="stylesheet" href="styles/main.css">
+    </head>
+    <body>
+        <div class="page art05">
+            <h1><a href="index.html">WebCrypto GOST</a>: CMS Signed/Digested data</h1>
+            <p class="note">The tool is intended for experimentation with data processing</p>
+            <article>
+                <h2>Sign sample data</h2>
+                <section>
+                    <label for="provider"><strong>Algorithm</strong> parameters for selected provider</label>
+                    <select class="value" id="provider">
+                        <option value="TC-256" selected>Crypto-Pro GOST R 34.10-2012 Cryptographic Service Provider</option>
+                        <option value="TC-512">Crypto-Pro GOST R 34.10-2012 Strong Cryptographic Service Provider</option>
+                        <option value="CP-01">Crypto-Pro GOST R 34.10-2001 Cryptographic Service Provider</option>
+                        <option value="SC-01">Signal-COM ECGOST Cryptographic Provider</option>
+                        <option value="RSA-2048">Microsoft Strong Cryptographic Provider</option>
+                        <option value="ECDSA-256">Microsoft Base DSS and Diffie-Hellman Cryptographic Provider</option>
+                    </select>
+                    <label for="signType">Choice <strong>signing mode</strong></label>
+                    <select class="value" id="signType">
+                        <option value="{detached: true}" selected>Detached signature</option>
+                        <option value="{}">Signed data</option>
+                        <option value="{certpath: true}">Signed data with cert path</option>
+                        <option value="{attrs: true}">Signed attributes with content</option>
+                        <option value="{attrs: true, detached: true}">Detached signed attributes</option>
+                        <option value="{certpath: true, attrs: true}">Signed attributes and cert path</option>
+                        <option value="{digest: true, detached: true}">Detached digested data</option>
+                        <option value="{digest: true}">Digested data with content</option>
+                    </select>
+                    <span class="label"><strong>Root CA Certificate & Private key</strong> from previous PKI example</span>
+                    <pre contenteditable id="certAndKeyCA" class="encoded"></pre>
+                    <div class="fileButton">
+                        <button id="loadButton">Load from file</button>
+                        <input type="file" onchange="
+                                var reader = new FileReader();
+                                reader.onload = function (e) {
+                                    certAndKeyCA.textContent = e.target.result;
+                                };
+                                reader.readAsText(this.files[0]);"/>
+                    </div>
+                    <button onclick="
+                            var cert = new gostCrypto.cert.X509({
+                                subject: {
+                                    countryName: 'RU',
+                                    stateOrProvinceName: 'С.Питербургъ',
+                                    organizationName: 'Современник',
+                                    organizationalUnitName: 'Руководство',
+                                    title: 'Редактор',
+                                    commonName: 'Пушкин Александр Сергеевич'
+                                }
+                            });
+                            cert.generate(provider.value).then(function (key) {
+                                certAndKeyCA.textContent = key.encode('PEM');
+                                return cert.sign(key);
+                            }).then(function () {
+                                certAndKeyCA.textContent = cert.encode('PEM') + '\r\n\r\n' + certAndKeyCA.textContent;
+                            }).catch(function (reason) {
+                                alert(reason.message);
+                            });">Generate new one</button>
+                    <button onclick="certAndKeyCA.innerHTML = ''">Clear</button>
+                    <span class="label"><strong>Signer Certificate & Private key</strong> from previous PKI example</span>
+                    <pre contenteditable id="signerCert" class="encoded"></pre>
+                    <div class="fileButton">
+                        <button>Load from file</button>
+                        <input type="file" onchange="
+                                var reader = new FileReader();
+                                reader.onload = function (e) {
+                                    signerCert.textContent = e.target.result;
+                                };
+                                reader.readAsText(this.files[0]);"/>
+                    </div>
+                    <button onclick="
+                            try {
+                                var cakey = new gostCrypto.asn1.PrivateKeyInfo(certAndKeyCA.textContent);
+                                var cacert = new gostCrypto.cert.X509(certAndKeyCA.textContent);
+                                var cert = new gostCrypto.cert.X509({
+                                    subject: {
+                                        countryName: 'RU',
+                                        stateOrProvinceName: 'С.Питербургъ',
+                                        organizationName: 'Современник',
+                                        organizationalUnitName: 'Действующие лица',
+                                        title: 'Филосов и публицист',
+                                        commonName: 'Евгеній Онѣгинъ'
+                                    }
+                                });
+                                cert.generate(provider.value).then(function (key) {
+                                    signerCert.textContent = key.encode('PEM');
+                                    return cert.sign(cakey, cacert);
+                                }).then(function () {
+                                    signerCert.textContent = cert.encode('PEM') + '\r\n\r\n' + signerCert.textContent;
+                                }).catch(function (reason) {
+                                    alert(reason.message);
+                                });
+                            } catch (e) {
+                                alert(reason.message);
+                            }">Requet and Issue new one</button>
+                    <button onclick="signerCert.innerHTML = ''">Clear</button>
+                    <span class="label"><strong>Data</strong> for signature</span>
+                    <pre contenteditable id="message" class="content">
+Не мысля гордый свет забавить,
+Вниманье дружбы возлюбя,
+Хотел бы я тебе представить
+Залог достойнее тебя,
+Достойнее души прекрасной,
+Святой исполненной мечты,
+Поэзии живой и ясной,
+Высоких дум и простоты;
+Но так и быть — рукой пристрастной
+Прими собранье пестрых глав,
+Полусмешных, полупечальных,
+Простонародных, идеальных,
+Небрежный плод моих забав,
+Бессонниц, легких вдохновений,
+Незрелых и увядших лет,
+Ума холодных наблюдений
+И сердца горестных замет.</pre>   
+                    <button onclick="(new Function(signMethod.textContent))()">Create signature</button>
+                    <span class="label"><strong>Data signature</strong> CMS PKCS#7 format</span>
+                    <pre contenteditable id="signedData" class="encoded"></pre>
+                    <button onclick="
+                            saveAs(new Blob([gostCrypto.coding.Chars.decode(signedData.textContent, 'ascii')], {type: 'text/plain'}), 'data.sig');
+                            ">Save contents to file</button>
+                    <button onclick="signedData.innerHTML = ''">Clear</button>
+                    <button onclick="gostViewer.openASN1(signedData)">View ASN.1</button>
+                    <button onclick="gostViewer.openSyntax(signedData, 'ContentInfo')">View JSON</button>
+                    <span class="label">Sign data method</span>
+                    <pre contenteditable id="signMethod" class="procedure prettyprint">
+var modes = new Function( 'return (' + signType.value + ')' )();
+try {
+    var content = gostCrypto.coding.Chars.decode(message.textContent, 'utf-8');
+    var finish, msg;
+    if (modes.digest) {
+        // Create digested data info
+        msg = new gostCrypto.cms.DigestedDataContentInfo();
+        msg.writeDetached(modes.detached);
+        finish = msg.encloseContent(content, provider.value);
+    } else {
+        // Import CA root certificate
+        var cacert = new gostCrypto.cert.X509(certAndKeyCA.textContent);
+        // Import private key of the signer
+        var key = new gostCrypto.asn1.PrivateKeyInfo(signerCert.textContent);
+        // Import certificate of the signer
+        var cert = new gostCrypto.cert.X509(signerCert.textContent);
+
+        // Create signed data info
+        msg = new gostCrypto.cms.SignedDataContentInfo();
+        msg.setEnclosed(content);
+        msg.writeDetached(modes.detached);
+
+        // Add certificate
+        if (modes.certpath)
+            msg.content.certificates = [cert];
+
+        // Add new signature
+        finish = msg.addSignature(key, cert, modes.attrs);
+    }
+    // Wait and print result
+    finish.then(function() {
+        // Output signed data
+        signedData.textContent = msg.encode('PEM');
+    }).catch(function(reason) {
+        alert(reason.message);
+    });
+} catch(e) {
+    alert(e.message);
+}
+                    </pre>
+                </section>
+                <h2>Verify signature</h2>
+                <section>
+                    <button onclick="(new Function(verifyMethod.textContent))()">Import and verify</button>
+                    <button onclick="verified.value = ''">Clear</button>
+                    <label for="verified">Is all signaturies verified and valid?</label>
+                    <input class="value" id="verified"/>
+                    <span class="label">Signed data verification method</span>
+                    <pre contenteditable id="verifyMethod" class="procedure prettyprint">
+var modes = new Function( 'return (' + signType.value + ')' )();
+try {
+    // Create a signed data info
+    var data = signedData.textContent, verifier, msg;
+    // Get the content for detached mode
+    var content = modes.detached && 
+        gostCrypto.coding.Chars.decode(message.textContent, 'utf-8');
+
+    if (modes.digest) {
+        // Verify message digest
+        msg = new gostCrypto.cms.DigestedDataContentInfo(data);
+        verifier = msg.verify(content);
+    } else {
+        msg = new gostCrypto.cms.SignedDataContentInfo(data);
+
+        // Check the signature
+        if (modes.certpath) {
+            // Use the CA root certificate
+            var cacert = new gostCrypto.cert.X509(certAndKeyCA.textContent);
+            var trustPolicy = new gostCrypto.cert.TrustedCAPolicy([cacert]);
+            verifier = msg.verify(trustPolicy, content);
+        } else {
+            // Use the signer's certificate
+            var cert = new gostCrypto.cert.X509(signerCert.textContent);
+            verifier = msg.verifySignature(cert, content);
+        }
+    }
+    verifier.then(function () {
+        // Signature verified
+        verified.value = 'Yes: Signature verified';
+    }, function (reason) {
+        // Reject if signature not verified
+        verified.value = 'No: ' + reason.message;
+    });
+} catch (e) {
+    alert(e.message);
+}
+</pre>
+                </section>
+            </article>
+        </div>
+        <script> prettyPrint();</script>
+    </body>
+</html>

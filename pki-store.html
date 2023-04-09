@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<!-- saved from url=(0014)about:internet -->
+<html>
+    <head>
+        <title>WebCrypto GOST: PFX Key Store</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.00, maximum-scale=1.00, user-scalable=0" />
+        <script src="scripts/prettify/prettify.js"></script>
+        <script src="scripts/prettify/lang-css.js"></script>
+        <script src="scripts/polyfill/typedarray.js"></script>
+        <script src="scripts/gost/gostCrypto.js"></script>
+        <script src="scripts/gost/gostCoding.js"></script>
+        <script src="scripts/gost/gostSecurity.js"></script>
+        <script src="scripts/gost/gostASN1.js"></script>
+        <script src="scripts/gost/gostCert.js"></script>
+        <script src="scripts/gost/gostCMS.js"></script>
+        <script src="scripts/gost/gostKeys.js"></script>
+        <script src="scripts/filesaver/FileSaver.js"></script>
+        <script src="scripts/gost/gostViewer.js"></script>
+        <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+        <link type="text/css" rel="stylesheet" href="styles/main.css">
+    </head>
+    <body>
+        <div class="page art02">
+            <h1><a href="index.html">WebCrypto GOST</a>: PFX Key Store</h1>
+            <p class="note">The tool is intended for experimentation with data processing</p>
+            <article>
+                <h2>Create PFX Key Store</h2>
+                <section>
+                    <label for="provider"><strong>Algorithm</strong> parameters for selected provider</label>
+                    <select class="value" id="provider">
+                        <option value="TC-256" selected>Crypto-Pro GOST R 34.10-2012 Cryptographic Service Provider</option>
+                        <option value="TC-512">Crypto-Pro GOST R 34.10-2012 Strong Cryptographic Service Provider</option>
+                        <option value="CP-01">Crypto-Pro GOST R 34.10-2001 Cryptographic Service Provider</option>
+                        <option value="SC-01">Signal-COM ECGOST Cryptographic Provider</option>
+                        <option value="RSA-2048">Microsoft Strong Cryptographic Provider</option>
+                        <option value="ECDSA-256">Microsoft Base DSS and Diffie-Hellman Cryptographic Provider</option>
+                    </select>
+                    <span class="label">Example of <strong>PrivateKey, Certificate and CRL</strong> contents</span>
+                    <pre contenteditable id="certAndKey" class="encoded"></pre>
+                    <button onclick="
+                            var cert = new gostCrypto.cert.X509({
+                                subject: {
+                                    countryName: 'RU',
+                                    stateOrProvinceName: 'С.Питербургъ',
+                                    organizationName: 'Современник',
+                                    organizationalUnitName: 'Руководство',
+                                    title: 'Редактор',
+                                    commonName: 'Пушкин Александр Сергеевич'
+                                }
+                            });
+                            var crl = new gostCrypto.cert.CRL({
+                                thisUpdate: new Date(),
+                                revokedCertificates: [{
+                                        userCertificate: '0x0102030405060708',
+                                        revocationDate: new Date(),
+                                        crlEntryExtensions: {
+                                            invalidityDate: new Date(),
+                                            cRLReason: 'keyCompromise'}}],
+                                crlExtensions: {cRLNumber: 1}});
+                            var privateKey;
+                            cert.generate(provider.value).then(function (key) {
+                                privateKey = key;
+                                certAndKey.textContent = key.encode('PEM');
+                                return cert.sign(key);
+                            }).then(function () {
+                                certAndKey.textContent += '\r\n\r\n' + cert.encode('PEM');
+                                return crl.sign(privateKey, cert);
+                            }).then(function () {
+                                certAndKey.textContent += '\r\n\r\n' + crl.encode('PEM');
+                            }).catch(function (reason) {
+                                alert(reason.message);
+                            });">Generate random</button>
+                    <button onclick="certAndKey.innerHTML = ''">Clear</button>
+                    <button onclick="gostViewer.openASN1(certAndKey)">View ASN.1</button>
+                    <button onclick="gostViewer.openSyntax(certAndKey, 'PrivateKeyInfo')">View JSON</button>
+                    <!--                    <label for="storeType">Choice Key Store <strong>Save mode</strong></label>
+                                        <select class="value" id="storeType" onchange="
+                                                if (this.value === 'PASSWORD') {
+                                                    newPasswordBlock.removeAttribute('hidden');
+                                                } else {
+                                                    newPasswordBlock.setAttribute('hidden', true);
+                                                }
+                                                ">
+                                            <option value="CLEAR" selected>Store and Keys decrypted</option>
+                                            <option value="PASSWORD">Store and Keys encrypted on password</option>
+                                            <option value="CERTIFICATE">Store and Keys encrypted on certificate</option>
+                                        </select>-->
+                    <div id="newPasswordBlock">
+                        <label for="keyPassword"><strong>New Store Password</strong> for MAC generation and encrypt</label>
+                        <input class="value" id="newPassword" value="Pétri de vanité il avait encore plus de cette espèce d'orgueil qui fait avouer avec la même indifférence les bonnes comme les mauvaises actions, suite d'un sentiment de supériorité, peut-être imaginaire."/>
+                    </div>
+                    <button onclick="(new Function(importKeyStore.textContent))()">Store contents to the PFX Key Store</button>
+                    <strong id="storeMessage"></strong>
+                    <span class="label">Create PFX Key Store method</span>
+                    <pre contenteditable id="importKeyStore" class="procedure prettyprint">
+new gostCrypto.keys.KeyStore({
+    alias: {
+        key: certAndKey.textContent,
+        certs: [certAndKey.textContent],
+        crls: [certAndKey.textContent]
+    }
+}).store(newPassword.value, provider.value).then(function (pfx) {
+    keyStore.textContent = pfx.encode('PEM');
+    storePassword.value = newPassword.value;
+    storeMessage.textContent = 'Сontents are stored';
+})['catch'](function (reason) {
+    alert(reason.message);
+});</pre>
+                </section>
+                <h2>Read PFX Key Store</h2>
+                <section>
+                    <span class="label"><strong>PFX Key Store</strong></span>
+                    <pre contenteditable id="keyStore" class="encoded"></pre>
+                    <div class="fileButton">
+                        <button id="loadButton">Load from file</button>
+                        <input type="file" onchange="
+                                var reader = new FileReader();
+                                reader.onload = function (e) {
+                                    var data = e.target.result, text;
+                                    try {
+                                        data = gostCrypto.coding.PEM.decode(data, 'PFX');
+                                        text = gostCrypto.coding.PEM.encode(data, 'PFX');
+                                    } catch (e) {
+                                        text = gostCrypto.coding.Base64.encode(data);
+                                    }
+                                    keyStore.textContent = text;
+                                };
+                                reader.readAsArrayBuffer(this.files[0]);"/>
+                    </div>
+                    <button onclick="
+                            saveAs(new Blob([gostCoding.Chars.decode(keyStore.textContent, 'ascii')], {type: 'text/plain'}), 'keystore.pfx');
+                            ">Save to file</button>
+                    <button onclick="keyStore.innerHTML = ''">Clear</button>
+                    <button onclick="gostViewer.openASN1(keyStore)">View ASN.1</button>
+                    <button onclick="gostViewer.openSyntax(keyStore, 'PFX')">View JSON</button>
+                    <div id="storePasswordBlock">
+                        <label for="storePassword"><strong>Store Password</strong> for MAC verification and decrypt</label>
+                        <input class="value" id="storePassword" value="Проникнутый тщеславием, он обладал сверх того еще особенной гордостью, которая побуждает признаваться с одинаковым равнодушием как в своих добрых, так и дурных поступках, - следствие чувства превосходства, быть может мнимого."/>
+                    </div>
+                    <button onclick="(new Function(exportKeyStore.textContent))()">Load contents from the PFX Key Store</button>
+                    <strong id="loadMessage"></strong>
+                    <span class="label">Read PFX Key Store method</span>
+                    <pre contenteditable id="exportKeyStore" class="procedure prettyprint">
+new gostCrypto.keys.KeyStore().load(keyStore.textContent, 
+    storePassword.value, true).then(function (store) {
+    certAndKey.textContent = '';
+    store.aliases().forEach(function(name) {
+        var entry = store.getEntry(name);
+        if (entry.key)
+            certAndKey.textContent += entry.key.encode('PEM') + '\r\n\r\n';
+        if (entry.certs) {
+            entry.certs.forEach(function (cert) {
+                certAndKey.textContent += cert.encode('PEM') + '\r\n\r\n';
+            });
+        }
+        if (entry.crls) {
+            entry.crls.forEach(function (crl) {
+                certAndKey.textContent += crl.encode('PEM') + '\r\n\r\n';
+            });
+        }
+        loadMessage.textContent = 'Сontents are loaded';
+    });
+})['catch'](function (reason) {
+    alert(reason.message);
+});</pre>
+                </section>
+            </article>
+        </div>
+        <script> prettyPrint();</script>
+    </body>
+</html>
